@@ -96,12 +96,12 @@
         <div id="remainDistSub" class="subvalue">-</div>
       </div>
       <div class="card">
-        <div class="small">전체/남은 상승고도</div>
+        <div class="small">전체상승고도</div>
         <div id="remainGain" class="value">-</div>
         <div id="gainSub" class="subvalue">-</div>
       </div>
       <div class="card">
-        <div class="small">전체/남은 하강고도</div>
+        <div class="small">전체하강고도</div>
         <div id="remainLoss" class="value">-</div>
         <div id="lossSub" class="subvalue">-</div>
       </div>
@@ -227,6 +227,11 @@ function calc(startIdx,targetIdx){
   };
 }
 
+function calcTotalCourse(){
+  if(!points.length) return null;
+  return calc(0, points.length - 1);
+}
+
 function drawChart(startIdx,targetIdx){
   const c=$("chart"), ctx=c.getContext("2d");
   ctx.clearRect(0,0,c.width,c.height);
@@ -329,17 +334,19 @@ function update(){
   const r = calc(startIdx,targetIdx);
   const isFull = startIdx === 0 && targetIdx === points.length - 1;
 
+  const total = calcTotalCourse();
+
   $("totalDist").textContent = fmtKm(points.at(-1).dist);
   $("totalDistSub").textContent = "시작점→종료점 전체 거리";
 
   $("remainDist").textContent = fmtKm(r.distance);
   $("remainDistSub").textContent = isFull ? "현재 위치가 경로 밖이므로 전체 거리와 동일" : "현재/시작 지점→목표지점";
 
-  $("remainGain").textContent = "+" + fmtM(r.gain);
-  $("gainSub").textContent = (isFull ? "전체 상승고도" : "남은 상승고도") + " / 시작점 고도 " + fmtM(r.startEle);
+  $("remainGain").textContent = "+" + fmtM(total.gain);
+  $("gainSub").textContent = "전체 누적 상승고도 / 시작점 고도 " + fmtM(total.startEle) + (isFull ? "" : " / 남은 상승 " + fmtM(r.gain));
 
-  $("remainLoss").textContent = "-" + fmtM(r.loss);
-  $("lossSub").textContent = (isFull ? "전체 하강고도" : "남은 하강고도") + " / 종료점 고도 " + fmtM(r.targetEle);
+  $("remainLoss").textContent = "-" + fmtM(total.loss);
+  $("lossSub").textContent = "전체 누적 하강고도 / 종료점 고도 " + fmtM(total.targetEle) + (isFull ? "" : " / 남은 하강 " + fmtM(r.loss));
 
   $("startInfo").textContent = (isFull ? "전체 코스 시작점: " : (current ? "현재 위치 기준: " : "수동 기준: ")) + fmtKm(points[startIdx].dist) + " / 고도 " + fmtM(points[startIdx].smoothEle);
   $("targetInfo").textContent = (isFull ? "전체 코스 종료점: " : "목표: ") + fmtKm(points[targetIdx].dist) + " / 고도 " + fmtM(points[targetIdx].smoothEle) + " / 고도변화 " + (r.net>=0?"+":"") + fmtM(r.net);
