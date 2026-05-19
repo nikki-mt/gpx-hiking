@@ -13,7 +13,7 @@
     .wrap{max-width:980px;margin:0 auto;padding:16px 16px 44px}
     .hero,.card{background:var(--card);border:1px solid var(--line);border-radius:22px;padding:18px;box-shadow:0 6px 18px rgba(0,0,0,.04)}
     h1{margin:0 0 6px;font-size:23px} p{margin:0;color:var(--muted);line-height:1.45}
-    .grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}
+    .grid{display:grid;grid-template-columns:1fr;gap:12px;margin-top:12px}.metric-pair{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}
     @media(min-width:760px){.grid.two{grid-template-columns:1fr 1fr}.grid.four{grid-template-columns:repeat(4,1fr)}}
     label.btn,button{display:block;width:100%;border:0;border-radius:16px;padding:14px 16px;background:var(--accent);color:white;font-weight:700;text-align:center;font-size:15px}
     input[type=file]{display:none} input[type=range]{width:100%}
@@ -53,16 +53,22 @@
     <div class="card"><div class="title">4. 목표지점</div><input id="targetRange" type="range" min="0" max="0" value="0" /><div id="targetInfo" class="small">-</div></div>
   </section>
 
-  <section class="grid four">
+  <section class="metric-pair">
     <div class="card"><div class="small">전체 거리</div><div id="totalDist" class="value">-</div><div id="totalDistSub" class="subvalue">시작점→종료점 전체 거리</div></div>
     <div class="card"><div class="small">선택 구간 거리</div><div id="segmentDist" class="value">-</div><div id="segmentDistSub" class="subvalue">시작지점→목표지점</div></div>
+  </section>
+
+  <section class="metric-pair">
     <div class="card"><div class="small">전체 누적상승고도</div><div id="totalGain" class="value">-</div><div id="totalGainSub" class="subvalue">전체 코스 기준</div></div>
     <div class="card"><div class="small">전체 누적하강고도</div><div id="totalLoss" class="value">-</div><div id="totalLossSub" class="subvalue">전체 코스 기준</div></div>
   </section>
 
-  <section class="grid four">
+  <section class="metric-pair">
     <div class="card"><div class="small">선택구간 누적상승고도</div><div id="segmentGain" class="value">-</div><div id="segmentGainSub" class="subvalue">시작지점→목표지점</div></div>
     <div class="card"><div class="small">선택구간 누적하강고도</div><div id="segmentLoss" class="value">-</div><div id="segmentLossSub" class="subvalue">시작지점→목표지점</div></div>
+  </section>
+
+  <section class="metric-pair">
     <div class="card"><div class="small">시작-목표 고도차</div><div id="elevationDiff" class="value">-</div><div id="elevationDiffSub" class="subvalue">목표고도 - 시작고도</div></div>
     <div class="card"><div class="small">시작/종료 고도</div><div id="startEndEle" class="value">-</div><div id="startEndEleSub" class="subvalue">전체 코스 기준</div></div>
   </section>
