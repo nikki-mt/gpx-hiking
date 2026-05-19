@@ -138,14 +138,14 @@ function update(){
   const {startIdx,targetIdx}=getEffectiveIndexes(), total=calcTotal(), segment=calcSegment(startIdx,targetIdx);
   const isFull=startIdx===0&&targetIdx===points.length-1;
   $("totalDist").textContent=fmtKm(total.distance); $("segmentDist").textContent=fmtKm(segment.distance); $("segmentDistSub").textContent=isFull?"전체 코스 기준":"시작지점→목표지점";
-  $("totalGain").textContent="+"+fmtM(total.gain); $("totalGainSub").textContent="전체 코스 누적상승 / 시작점 고도 "+fmtM(total.startEle);
-  $("totalLoss").textContent="-"+fmtM(total.loss); $("totalLossSub").textContent="전체 코스 누적하강 / 종료점 고도 "+fmtM(total.targetEle);
+  $("totalGain").textContent="+"+fmtM(total.gain); $("totalGainSub").innerHTML="전체 코스 누적상승 / 시작점 고도 "+fmtM(total.startEle);
+  $("totalLoss").textContent="-"+fmtM(total.loss); $("totalLossSub").innerHTML="전체 코스 누적하강 / 종료점 고도 "+fmtM(total.targetEle);
   $("segmentGain").textContent="+"+fmtM(segment.gain); $("segmentGainSub").textContent=isFull?"전체 코스 기준":"선택 구간 기준";
   $("segmentLoss").textContent="-"+fmtM(segment.loss); $("segmentLossSub").textContent=isFull?"전체 코스 기준":"선택 구간 기준";
-  $("elevationDiff").textContent=(segment.elevationDiff>=0?"+":"")+fmtM(segment.elevationDiff); $("elevationDiffSub").textContent="목표고도 "+fmtM(segment.targetEle)+" - 시작고도 "+fmtM(segment.startEle);
-  $("startEndEle").textContent=fmtM(total.startEle)+" / "+fmtM(total.targetEle); $("startEndEleSub").textContent="전체 시작점 / 전체 종료점";
-  $("startInfo").textContent=(isFull?"전체 코스 시작점: ":(current?"현재 위치 기준: ":"수동 기준: "))+fmtKm(points[startIdx].dist)+" / 고도 "+fmtM(points[startIdx].smoothEle);
-  $("targetInfo").textContent=(isFull?"전체 코스 종료점: ":"목표: ")+fmtKm(points[targetIdx].dist)+" / 고도 "+fmtM(points[targetIdx].smoothEle)+" / 선택구간 누적상승고도 "+fmtM(segment.gain)+" / 선택구간 누적하강고도 "+fmtM(segment.loss)+" / 시작-목표 고도차 "+(segment.elevationDiff>=0?"+":"")+fmtM(segment.elevationDiff);
+  $("elevationDiff").textContent=(segment.elevationDiff>=0?"+":"")+fmtM(segment.elevationDiff); $("elevationDiffSub").innerHTML="목표고도 "+fmtM(segment.targetEle)+" - 시작고도 "+fmtM(segment.startEle);
+  $("startEndEle").innerHTML=fmtM(total.startEle)+"<br>"+fmtM(total.targetEle); $("startEndEleSub").innerHTML="전체 시작점<br>전체 종료점";
+  $("startInfo").innerHTML=(isFull?"전체 코스 시작점: ":(current?"현재 위치 기준: ":"수동 기준: "))+fmtKm(points[startIdx].dist)+"<br>고도 "+fmtM(points[startIdx].smoothEle);
+  $("targetInfo").innerHTML=(isFull?"전체 코스 종료점: ":"목표: ")+fmtKm(points[targetIdx].dist)+"<br>고도 "+fmtM(points[targetIdx].smoothEle)+"<br>선택구간 누적상승고도 "+fmtM(segment.gain)+"<br>선택구간 누적하강고도 "+fmtM(segment.loss)+"<br>시작-목표 고도차 "+(segment.elevationDiff>=0?"+":"")+fmtM(segment.elevationDiff);
   updateMap(startIdx,targetIdx);drawChart(startIdx,targetIdx);
 }
 $("file").addEventListener("change",async e=>{const file=e.target.files?.[0];if(!file)return;const text=await file.text();points=parseGpx(text);current=null;currentIdx=0;useFullRouteMode=true;$("fileName").textContent=file.name+" / 포인트 "+points.length.toLocaleString()+"개";$("startRange").max=Math.max(points.length-1,0);$("targetRange").max=Math.max(points.length-1,0);$("startRange").value=0;$("targetRange").value=Math.max(points.length-1,0);$("locInfo").textContent="현재 위치를 찍기 전이므로 시작점→종료점 전체 코스로 표시합니다.";update();});
