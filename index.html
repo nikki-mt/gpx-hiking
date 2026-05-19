@@ -7,7 +7,11 @@
   <meta name="apple-mobile-web-app-title" content="GPX 고도계산" />
   <title>GPX 카카오맵 + 남은 상승고도 계산기</title>
 
- <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=24924ddc2e3e35fe03681967d2b0ac1a"></script>
+  <!--
+    사용 전 필수:
+    아래 24924ddc2e3e35fe03681967d2b0ac1a 부분을 본인의 카카오 JavaScript 키로 바꾸세요.
+  -->
+  <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=24924ddc2e3e35fe03681967d2b0ac1a"></script>
 
   <style>
     :root { --bg:#f5f7fb; --card:#fff; --text:#111827; --muted:#6b7280; --line:#e5e7eb; --accent:#111827; }
@@ -80,21 +84,6 @@
       <canvas id="chart" width="900" height="300"></canvas>
     </section>
 
-
-
-    <section class="grid two">
-      <div class="card">
-        <div class="title">3. 시작지점</div>
-        <input id="startRange" type="range" min="0" max="0" value="0" />
-        <div id="startInfo" class="small">-</div>
-      </div>
-      <div class="card">
-        <div class="title">4. 목표지점</div>
-        <input id="targetRange" type="range" min="0" max="0" value="0" />
-        <div id="targetInfo" class="small">-</div>
-      </div>
-    </section>
-
     <section class="grid four">
       <div class="card">
         <div class="small">전체 거리</div>
@@ -107,14 +96,27 @@
         <div id="remainDistSub" class="subvalue">-</div>
       </div>
       <div class="card">
-        <div class="small">누적상승고도</div>
+        <div class="small">전체상승고도</div>
         <div id="remainGain" class="value">-</div>
         <div id="gainSub" class="subvalue">-</div>
       </div>
       <div class="card">
-        <div class="small">누적하강고도</div>
+        <div class="small">전체하강고도</div>
         <div id="remainLoss" class="value">-</div>
         <div id="lossSub" class="subvalue">-</div>
+      </div>
+    </section>
+
+    <section class="grid two">
+      <div class="card">
+        <div class="title">3. 시작지점</div>
+        <input id="startRange" type="range" min="0" max="0" value="0" />
+        <div id="startInfo" class="small">-</div>
+      </div>
+      <div class="card">
+        <div class="title">4. 목표지점</div>
+        <input id="targetRange" type="range" min="0" max="0" value="0" />
+        <div id="targetInfo" class="small">-</div>
       </div>
     </section>
 
@@ -230,27 +232,6 @@ function calcTotalCourse(){
   return calc(0, points.length - 1);
 }
 
-
-function calcCumulativeCourse(){
-  if(!points.length) return null;
-  let cumulativeGain = 0;
-  let cumulativeLoss = 0;
-
-  for(let i = 1; i < points.length; i++){
-    const diff = points[i].smoothEle - points[i - 1].smoothEle;
-    if(diff > 0) cumulativeGain += diff;
-    if(diff < 0) cumulativeLoss += Math.abs(diff);
-  }
-
-  return {
-    distance: points[points.length - 1].dist,
-    gain: cumulativeGain,
-    loss: cumulativeLoss,
-    startEle: points[0].smoothEle,
-    endEle: points[points.length - 1].smoothEle
-  };
-}
-
 function drawChart(startIdx,targetIdx){
   const c=$("chart"), ctx=c.getContext("2d");
   ctx.clearRect(0,0,c.width,c.height);
@@ -353,24 +334,22 @@ function update(){
   const r = calc(startIdx,targetIdx);
   const isFull = startIdx === 0 && targetIdx === points.length - 1;
 
-  const cumulative = calcCumulativeCourse();
+  const total = calcTotalCourse();
 
-  $("totalDist").textContent = fmtKm(cumulative.distance);
+  $("totalDist").textContent = fmtKm(points.at(-1).dist);
   $("totalDistSub").textContent = "시작점→종료점 전체 거리";
 
   $("remainDist").textContent = fmtKm(r.distance);
-  $("remainDistSub").textContent = isFull ? "전체 코스 기준" : "현재/시작 지점→목표지점";
+  $("remainDistSub").textContent = isFull ? "현재 위치가 경로 밖이므로 전체 거리와 동일" : "현재/시작 지점→목표지점";
 
-  // 중요: 아래 두 값은 선택 구간이 아니라 GPX 전체의 누적 상승/하강을 계산함
-  $("remainGain").textContent = "+" + fmtM(cumulative.gain);
-  $("gainSub").textContent = "GPX 전체 누적 상승 / 시작점 고도 " + fmtM(cumulative.startEle) + (isFull ? "" : " / 선택 구간 상승 " + fmtM(r.gain));
+  $("remainGain").textContent = "+" + fmtM(total.gain);
+  $("gainSub").textContent = "전체 누적 상승고도 / 시작점 고도 " + fmtM(total.startEle) + (isFull ? "" : " / 남은 상승 " + fmtM(r.gain));
 
-  $("remainLoss").textContent = "-" + fmtM(cumulative.loss);
-  $("lossSub").textContent = "GPX 전체 누적 하강 / 종료점 고도 " + fmtM(cumulative.endEle) + (isFull ? "" : " / 선택 구간 하강 " + fmtM(r.loss));
-
+  $("remainLoss").textContent = "-" + fmtM(total.loss);
+  $("lossSub").textContent = "전체 누적 하강고도 / 종료점 고도 " + fmtM(total.targetEle) + (isFull ? "" : " / 남은 하강 " + fmtM(r.loss));
 
   $("startInfo").textContent = (isFull ? "전체 코스 시작점: " : (current ? "현재 위치 기준: " : "수동 기준: ")) + fmtKm(points[startIdx].dist) + " / 고도 " + fmtM(points[startIdx].smoothEle);
-  $("targetInfo").textContent = (isFull ? "전체 코스 종료점: " : "목표: ") + fmtKm(points[targetIdx].dist) + " / 고도 " + fmtM(points[targetIdx].smoothEle) + " / 고도변화 " + (r.net>=0?"+":"") + fmtM(r.net);
+  $("targetInfo").textContent = (isFull ? "전체 코스 종료점: " : "목표: ") + fmtKm(points[targetIdx].dist) + " / 고도 " + fmtM(points[targetIdx].smoothEle) + " / 선택구간 누적상승 " + fmtM(r.gain) + " / 선택구간 누적하강 " + fmtM(r.loss) + " / 시작-목표 고도차 " + (r.net>=0?"+":"") + fmtM(r.net);
 
   updateMap(startIdx, targetIdx);
   drawChart(startIdx,targetIdx);
