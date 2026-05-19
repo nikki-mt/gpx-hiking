@@ -1,0 +1,408 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="GPX 고도계산" />
+  <title>GPX 카카오맵 + 남은 상승고도 계산기</title>
+
+  <!--
+    사용 전 필수:
+    아래 24924ddc2e3e35fe03681967d2b0ac1a 부분을 본인의 카카오 JavaScript 키로 바꾸세요.
+  -->
+  <script src="https://dapi.kakao.com/v2/maps/sdk.js?appkey=24924ddc2e3e35fe03681967d2b0ac1a"></script>
+
+  <style>
+    :root { --bg:#f5f7fb; --card:#fff; --text:#111827; --muted:#6b7280; --line:#e5e7eb; --accent:#111827; }
+    * { box-sizing:border-box; }
+    body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif; background:var(--bg); color:var(--text); }
+    .wrap { max-width:980px; margin:0 auto; padding:16px; padding-bottom:44px; }
+    .hero,.card { background:var(--card); border:1px solid var(--line); border-radius:22px; padding:18px; box-shadow:0 6px 18px rgba(0,0,0,.04); }
+    h1 { margin:0 0 6px; font-size:23px; }
+    p { margin:0; color:var(--muted); line-height:1.45; }
+    .grid { display:grid; grid-template-columns:1fr; gap:12px; margin-top:12px; }
+    @media(min-width:760px){ .grid.two{grid-template-columns:1fr 1fr;} .grid.four{grid-template-columns:repeat(4,1fr);} }
+    label.btn, button { display:block; width:100%; border:0; border-radius:16px; padding:14px 16px; background:var(--accent); color:white; font-weight:700; text-align:center; font-size:15px; }
+    input[type=file] { display:none; }
+    input[type=range] { width:100%; }
+    .small { font-size:12px; color:var(--muted); word-break:break-all; line-height:1.45; }
+    .title { font-weight:800; margin-bottom:10px; }
+    .value { font-size:23px; font-weight:900; margin-top:5px; }
+    .subvalue { font-size:12px; color:var(--muted); margin-top:4px; line-height:1.4; }
+    .notice { font-size:12px; color:var(--muted); line-height:1.45; background:#f3f4f6; border-radius:14px; padding:12px; }
+    #map { height:360px; border-radius:16px; overflow:hidden; border:1px solid var(--line); background:#eef2f7; }
+    canvas { width:100%; background:#fff; border-radius:14px; border:1px solid var(--line); display:block; height:220px; }
+    .error { color:#dc2626; font-size:12px; }
+    .legend { display:flex; flex-wrap:wrap; gap:10px; font-size:12px; color:var(--muted); margin-top:8px; }
+    .dot { display:inline-block; width:10px; height:10px; border-radius:50%; margin-right:4px; vertical-align:-1px; }
+    .blue { background:#2563eb; } .red { background:#ef4444; } .black { background:#111827; } .green { background:#16a34a; }
+    .keybox { border:1px solid #f59e0b; background:#fffbeb; color:#92400e; border-radius:14px; padding:12px; font-size:12px; line-height:1.5; margin-top:10px; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <h1>GPX 카카오맵 + 남은 상승고도 계산기</h1>
+      <p>현재 위치가 경로와 가까우면 현재 위치 기준으로 계산하고, 경로에서 멀리 떨어져 있으면 시작점부터 종료점까지 전체 코스 정보를 표시합니다.</p>
+      <div id="keyWarning" class="keybox" style="display:none;">
+        카카오 JavaScript 키가 아직 입력되지 않았습니다. HTML 파일에서 <b>24924ddc2e3e35fe03681967d2b0ac1a</b>를 본인의 키로 바꿔야 지도가 표시됩니다.
+      </div>
+    </section>
+
+    <section class="grid two">
+      <div class="card">
+        <div class="title">1. GPX 불러오기</div>
+        <label class="btn">
+          GPX 파일 선택
+          <input id="file" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" />
+        </label>
+        <div id="fileName" class="small" style="margin-top:10px;">아직 파일 없음</div>
+      </div>
+
+      <div class="card">
+        <div class="title">2. 현재 위치</div>
+        <button id="locate">현재 위치 찍기</button>
+        <div id="locInfo" class="small" style="margin-top:10px;">위치 미사용 시 시작점→종료점 전체 코스로 표시합니다.</div>
+        <div id="geoError" class="error" style="margin-top:8px;"></div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:12px;">
+      <div class="title">카카오맵</div>
+      <div id="map"></div>
+      <div class="legend">
+        <span><span class="dot black"></span>전체 GPX 경로</span>
+        <span><span class="dot green"></span>계산 대상 구간</span>
+        <span><span class="dot blue"></span>시작/현재 지점</span>
+        <span><span class="dot red"></span>목표지점</span>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:12px;">
+      <div class="title">고도그래프</div>
+      <canvas id="chart" width="900" height="300"></canvas>
+    </section>
+
+    <section class="grid four">
+      <div class="card">
+        <div class="small">전체 거리</div>
+        <div id="totalDist" class="value">-</div>
+        <div id="totalDistSub" class="subvalue">-</div>
+      </div>
+      <div class="card">
+        <div class="small">남은 거리</div>
+        <div id="remainDist" class="value">-</div>
+        <div id="remainDistSub" class="subvalue">-</div>
+      </div>
+      <div class="card">
+        <div class="small">전체/남은 상승고도</div>
+        <div id="remainGain" class="value">-</div>
+        <div id="gainSub" class="subvalue">-</div>
+      </div>
+      <div class="card">
+        <div class="small">전체/남은 하강고도</div>
+        <div id="remainLoss" class="value">-</div>
+        <div id="lossSub" class="subvalue">-</div>
+      </div>
+    </section>
+
+    <section class="grid two">
+      <div class="card">
+        <div class="title">3. 시작지점</div>
+        <input id="startRange" type="range" min="0" max="0" value="0" />
+        <div id="startInfo" class="small">-</div>
+      </div>
+      <div class="card">
+        <div class="title">4. 목표지점</div>
+        <input id="targetRange" type="range" min="0" max="0" value="0" />
+        <div id="targetInfo" class="small">-</div>
+      </div>
+    </section>
+
+    <section class="card" style="margin-top:12px;">
+      <div class="title">계산 기준</div>
+      <div class="notice">
+        현재 위치가 GPX 경로에서 <b>200m 이상</b> 떨어져 있으면 등산로 밖으로 판단하여 시작점→종료점 전체 정보를 표시합니다.
+        GPX 고도값은 5포인트 이동평균으로 완화하고, 3m 이상 변화만 상승·하강으로 반영합니다.
+      </div>
+    </section>
+  </div>
+
+<script>
+let points = [];
+let current = null;
+let currentIdx = 0;
+let currentDistanceToRoute = Infinity;
+let useFullRouteMode = true;
+const OFF_ROUTE_THRESHOLD_M = 200;
+
+let map = null;
+let routePolyline = null;
+let remainPolyline = null;
+let startMarker = null;
+let targetMarker = null;
+
+const $ = id => document.getElementById(id);
+const fmtM = v => Number.isFinite(v) ? Math.round(v).toLocaleString() + " m" : "-";
+const fmtKm = v => Number.isFinite(v) ? (v/1000).toFixed(2) + " km" : "-";
+
+function hasKakaoMap(){
+  return window.kakao && window.kakao.maps && typeof window.kakao.maps.Map === "function";
+}
+
+function initMap(){
+  if(!hasKakaoMap()){
+    $("keyWarning").style.display = "block";
+    $("map").innerHTML = "<div style='padding:18px;color:#6b7280;font-size:13px;'>카카오맵을 불러오지 못했습니다. JavaScript 키와 도메인 등록을 확인하세요.</div>";
+    return;
+  }
+  const center = new kakao.maps.LatLng(36.5, 127.8);
+  map = new kakao.maps.Map($("map"), { center, level: 13 });
+  const mapTypeControl = new kakao.maps.MapTypeControl();
+  map.addControl(mapTypeControl, kakao.maps.ControlPosition.TOPRIGHT);
+  const zoomControl = new kakao.maps.ZoomControl();
+  map.addControl(zoomControl, kakao.maps.ControlPosition.RIGHT);
+}
+
+function haversine(a,b){
+  const R=6371000, rad=d=>d*Math.PI/180;
+  const dLat=rad(b.lat-a.lat), dLon=rad(b.lon-a.lon);
+  const lat1=rad(a.lat), lat2=rad(b.lat);
+  const h=Math.sin(dLat/2)**2 + Math.cos(lat1)*Math.cos(lat2)*Math.sin(dLon/2)**2;
+  return 2*R*Math.asin(Math.sqrt(h));
+}
+
+function parseGpx(text){
+  const doc = new DOMParser().parseFromString(text, "application/xml");
+  const nodes = [...doc.querySelectorAll("trkpt, rtept")];
+  const raw = nodes.map(n => ({
+    lat: Number(n.getAttribute("lat")),
+    lon: Number(n.getAttribute("lon")),
+    ele: Number(n.querySelector("ele")?.textContent ?? NaN)
+  })).filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lon) && Number.isFinite(p.ele));
+
+  let dist = 0;
+  const withDist = raw.map((p,i)=>{
+    if(i>0) dist += haversine(raw[i-1], p);
+    return {...p, dist};
+  });
+  return smooth(withDist, 5);
+}
+
+function smooth(arr, win){
+  const half=Math.floor(win/2);
+  return arr.map((p,i)=>{
+    const s=Math.max(0,i-half), e=Math.min(arr.length,i+half+1);
+    const slice=arr.slice(s,e);
+    const avg=slice.reduce((sum,x)=>sum+x.ele,0)/slice.length;
+    return {...p, smoothEle:avg};
+  });
+}
+
+function nearestIndexAndDistance(pos){
+  let best=0, bestD=Infinity;
+  points.forEach((p,i)=>{
+    const d=haversine(p,pos);
+    if(d<bestD){ bestD=d; best=i; }
+  });
+  return { index: best, distance: bestD };
+}
+
+function calc(startIdx,targetIdx){
+  if(!points.length) return null;
+  const s=Math.min(startIdx,targetIdx), e=Math.max(startIdx,targetIdx);
+  let gain=0, loss=0;
+  for(let i=s+1;i<=e;i++){
+    const diff=points[i].smoothEle-points[i-1].smoothEle;
+    if(diff>=3) gain += diff;
+    if(diff<=-3) loss += Math.abs(diff);
+  }
+  return {
+    distance: Math.abs(points[targetIdx].dist-points[startIdx].dist),
+    gain, loss,
+    net: points[targetIdx].smoothEle-points[startIdx].smoothEle,
+    startEle: points[startIdx].smoothEle,
+    targetEle: points[targetIdx].smoothEle
+  };
+}
+
+function drawChart(startIdx,targetIdx){
+  const c=$("chart"), ctx=c.getContext("2d");
+  ctx.clearRect(0,0,c.width,c.height);
+  if(!points.length) {
+    ctx.fillStyle="#9ca3af";
+    ctx.font="18px -apple-system";
+    ctx.fillText("GPX 파일을 불러오면 고도그래프가 표시됩니다.", 30, 60);
+    return;
+  }
+  const pad=36, w=c.width-pad*2, h=c.height-pad*2;
+  const minEle=Math.min(...points.map(p=>p.smoothEle));
+  const maxEle=Math.max(...points.map(p=>p.smoothEle));
+  const maxDist=points.at(-1).dist || 1;
+  const x=p=>pad+(p.dist/maxDist)*w;
+  const y=p=>pad+h-((p.smoothEle-minEle)/Math.max(1,maxEle-minEle))*h;
+
+  ctx.strokeStyle="#e5e7eb"; ctx.lineWidth=1;
+  for(let i=0;i<5;i++){
+    const yy=pad+i*h/4;
+    ctx.beginPath(); ctx.moveTo(pad,yy); ctx.lineTo(pad+w,yy); ctx.stroke();
+  }
+
+  ctx.strokeStyle="#111827"; ctx.lineWidth=3;
+  ctx.beginPath();
+  points.forEach((p,i)=>{ if(i===0) ctx.moveTo(x(p),y(p)); else ctx.lineTo(x(p),y(p)); });
+  ctx.stroke();
+
+  const mark = (idx, color) => {
+    const xx=x(points[idx]), yy=y(points[idx]);
+    ctx.strokeStyle=color; ctx.lineWidth=2; ctx.setLineDash([6,5]);
+    ctx.beginPath(); ctx.moveTo(xx,pad); ctx.lineTo(xx,pad+h); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle=color;
+    ctx.beginPath(); ctx.arc(xx,yy,6,0,Math.PI*2); ctx.fill();
+  };
+  mark(startIdx, "#2563eb");
+  mark(targetIdx, "#ef4444");
+}
+
+function updateMap(startIdx, targetIdx){
+  if(!map || !hasKakaoMap() || !points.length) return;
+
+  if(routePolyline) routePolyline.setMap(null);
+  if(remainPolyline) remainPolyline.setMap(null);
+  if(startMarker) startMarker.setMap(null);
+  if(targetMarker) targetMarker.setMap(null);
+
+  const path = points.map(p => new kakao.maps.LatLng(p.lat, p.lon));
+  routePolyline = new kakao.maps.Polyline({
+    path,
+    strokeWeight: 5,
+    strokeColor: '#111827',
+    strokeOpacity: 0.8,
+    strokeStyle: 'solid'
+  });
+  routePolyline.setMap(map);
+
+  const s = Math.min(startIdx, targetIdx);
+  const e = Math.max(startIdx, targetIdx);
+  const remainPath = points.slice(s, e + 1).map(p => new kakao.maps.LatLng(p.lat, p.lon));
+  remainPolyline = new kakao.maps.Polyline({
+    path: remainPath,
+    strokeWeight: 7,
+    strokeColor: '#16a34a',
+    strokeOpacity: 0.9,
+    strokeStyle: 'solid'
+  });
+  remainPolyline.setMap(map);
+
+  const startPos = new kakao.maps.LatLng(points[startIdx].lat, points[startIdx].lon);
+  const targetPos = new kakao.maps.LatLng(points[targetIdx].lat, points[targetIdx].lon);
+
+  startMarker = new kakao.maps.Marker({ position: startPos });
+  targetMarker = new kakao.maps.Marker({ position: targetPos });
+  startMarker.setMap(map);
+  targetMarker.setMap(map);
+
+  const bounds = new kakao.maps.LatLngBounds();
+  path.forEach(latlng => bounds.extend(latlng));
+  map.setBounds(bounds);
+}
+
+function getEffectiveIndexes(){
+  if(!points.length) return { startIdx: 0, targetIdx: 0 };
+  if(useFullRouteMode) {
+    return { startIdx: 0, targetIdx: points.length - 1 };
+  }
+  const startIdx = current ? currentIdx : Number($("startRange").value);
+  const targetIdx = Number($("targetRange").value);
+  return { startIdx, targetIdx };
+}
+
+function update(){
+  if(!points.length) {
+    drawChart(0,0);
+    return;
+  }
+
+  const { startIdx, targetIdx } = getEffectiveIndexes();
+  const r = calc(startIdx,targetIdx);
+  const isFull = startIdx === 0 && targetIdx === points.length - 1;
+
+  $("totalDist").textContent = fmtKm(points.at(-1).dist);
+  $("totalDistSub").textContent = "시작점→종료점 전체 거리";
+
+  $("remainDist").textContent = fmtKm(r.distance);
+  $("remainDistSub").textContent = isFull ? "현재 위치가 경로 밖이므로 전체 거리와 동일" : "현재/시작 지점→목표지점";
+
+  $("remainGain").textContent = "+" + fmtM(r.gain);
+  $("gainSub").textContent = (isFull ? "전체 상승고도" : "남은 상승고도") + " / 시작점 고도 " + fmtM(r.startEle);
+
+  $("remainLoss").textContent = "-" + fmtM(r.loss);
+  $("lossSub").textContent = (isFull ? "전체 하강고도" : "남은 하강고도") + " / 종료점 고도 " + fmtM(r.targetEle);
+
+  $("startInfo").textContent = (isFull ? "전체 코스 시작점: " : (current ? "현재 위치 기준: " : "수동 기준: ")) + fmtKm(points[startIdx].dist) + " / 고도 " + fmtM(points[startIdx].smoothEle);
+  $("targetInfo").textContent = (isFull ? "전체 코스 종료점: " : "목표: ") + fmtKm(points[targetIdx].dist) + " / 고도 " + fmtM(points[targetIdx].smoothEle) + " / 고도변화 " + (r.net>=0?"+":"") + fmtM(r.net);
+
+  updateMap(startIdx, targetIdx);
+  drawChart(startIdx,targetIdx);
+}
+
+$("file").addEventListener("change", async e=>{
+  const file=e.target.files?.[0];
+  if(!file) return;
+  const text=await file.text();
+  points=parseGpx(text);
+  current=null; currentIdx=0; currentDistanceToRoute=Infinity; useFullRouteMode=true;
+  $("fileName").textContent=file.name + " / 포인트 " + points.length.toLocaleString() + "개";
+  $("startRange").max=Math.max(points.length-1,0);
+  $("targetRange").max=Math.max(points.length-1,0);
+  $("startRange").value=0;
+  $("targetRange").value=Math.max(points.length-1,0);
+  $("locInfo").textContent="현재 위치를 찍기 전이므로 시작점→종료점 전체 코스로 표시합니다.";
+  update();
+});
+
+$("locate").addEventListener("click", ()=>{
+  $("geoError").textContent="";
+  if(!navigator.geolocation){ $("geoError").textContent="이 브라우저에서 위치 기능을 사용할 수 없습니다."; return; }
+  if(!points.length){ $("geoError").textContent="먼저 GPX 파일을 불러오세요."; return; }
+
+  navigator.geolocation.getCurrentPosition(pos=>{
+    current={lat:pos.coords.latitude, lon:pos.coords.longitude};
+    const nearest = nearestIndexAndDistance(current);
+    currentIdx = nearest.index;
+    currentDistanceToRoute = nearest.distance;
+
+    if(currentDistanceToRoute > OFF_ROUTE_THRESHOLD_M){
+      useFullRouteMode = true;
+      $("locInfo").textContent = "현재 위치가 경로에서 약 " + fmtM(currentDistanceToRoute) + " 떨어져 있어 시작점→종료점 전체 코스로 표시합니다.";
+    } else {
+      useFullRouteMode = false;
+      $("locInfo").textContent = "경로상 현재 지점: " + fmtKm(points[currentIdx].dist) + " / 경로와 거리 약 " + fmtM(currentDistanceToRoute);
+    }
+    update();
+  }, err=>{
+    $("geoError").textContent="위치 확인 실패: " + err.message;
+  }, {enableHighAccuracy:true, timeout:15000, maximumAge:5000});
+});
+
+$("startRange").addEventListener("input", ()=>{
+  current=null;
+  useFullRouteMode=false;
+  $("locInfo").textContent="수동 시작지점을 사용 중입니다.";
+  update();
+});
+$("targetRange").addEventListener("input", ()=>{
+  if(points.length && useFullRouteMode) {
+    useFullRouteMode=false;
+    $("locInfo").textContent="목표지점을 수동 조정하여 선택 구간 기준으로 표시합니다.";
+  }
+  update();
+});
+
+initMap();
+drawChart(0,0);
+</script>
+</body>
+</html>
