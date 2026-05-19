@@ -488,9 +488,11 @@ function updateMap(startIdx,targetIdx){
   });
   startMarker.setMap(map);
   targetMarker.setMap(map);
+if(!map.__didFitBounds){
   const bounds=new kakao.maps.LatLngBounds();
   path.forEach(latlng=>bounds.extend(latlng));
   map.setBounds(bounds);
+  map.__didFitBounds=true;
 }
 function update(){
   if(!points.length){
@@ -538,6 +540,7 @@ $("file").addEventListener("change",async e=>{
   current=null;
   currentIdx=0;
   useFullRouteMode=true;
+  if(map) map.__didFitBounds=false;
   $("fileName").textContent=file.name+" / 포인트 "+points.length.toLocaleString()+"개";
   $("startRange").max=Math.max(points.length-1,0);
   $("targetRange").max=Math.max(points.length-1,0);
