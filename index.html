@@ -93,6 +93,10 @@
       font-size:15px;
       box-shadow:0 8px 18px rgba(31,122,77,.22);
     }
+    .drop-zone{border:2px dashed var(--line);border-radius:12px;padding:14px;transition:background .15s,border-color .15s}
+    .drop-zone.drag-over{border-color:var(--accent);background:var(--accent2)}
+    label.btn{cursor:pointer}
+    label.btn:focus-visible{outline:3px solid var(--dark);outline-offset:3px}
     input[type=file]{display:none}
     input[type=range]{width:100%; accent-color:var(--accent)}
     .small{
@@ -190,11 +194,15 @@
   <section class="grid two">
     <div class="card">
       <div class="title">1. GPX 불러오기</div>
-      <label class="btn">
+      <div id="dropZone" class="drop-zone">
+      <label class="btn" tabindex="0" role="button" aria-controls="file">
         GPX 파일 선택
         <input id="file" type="file" accept=".gpx,application/gpx+xml,application/xml,text/xml" />
       </label>
-      <div id="fileName" class="small" style="margin-top:10px;">아직 파일 없음</div>
+      <div class="small" style="margin-top:10px;">GPX 파일 1개를 이 영역에 끌어다 놓으셔도 됩니다</div>
+      <div id="fileName" class="small" style="margin-top:10px;" aria-live="polite">아직 파일 없음</div>
+      <div id="fileError" class="error" role="alert" style="margin-top:8px;"></div>
+      </div>
     </div>
     <div class="card">
       <div class="title">2. 현재 위치</div>
@@ -527,11 +535,21 @@ function update(){
   updateMap(startIdx,targetIdx);
   drawChart(startIdx,targetIdx);
 }
-$("file").addEventListener("change",async e=>{
-  const file=e.target.files?.[0];
+let fileLoadVersion=0;
+async function loadGpxFile(file){
   if(!file)return;
-  const text=await file.text();
-  points=parseGpx(text);
+  const version=++fileLoadVersion;
+  $("fileError").textContent="";
+  if(!/\.gpx$/i.test(file.name)){
+    $("fileError").textContent="확장자가 .gpx인 파일을 선택해 주세요.";
+    return;
+  }
+  try{
+    const text=await file.text();
+    if(version!==fileLoadVersion)return;
+    const parsed=parseGpx(text);
+    if(!parsed.length)throw new Error("고도와 위치가 있는 경로 포인트를 찾지 못했습니다.");
+    points=parsed;
   current=null;
   currentIdx=0;
   useFullRouteMode=true;
@@ -543,6 +561,57 @@ $("file").addEventListener("change",async e=>{
   $("targetRange").value=Math.max(points.length-1,0);
   $("locInfo").textContent="현재 위치를 찍기 전이므로 시작점→종료점 전체 코스로 표시합니다.";
   update();
+  }catch(error){
+    if(version!==fileLoadVersion)return;
+    $("fileError").textContent="GPX 파일을 불러오지 못했습니다. "+error.message;
+  }
+}
+$("file").addEventListener("change",e=>{
+  loadGpxFile(e.target.files?.[0]);
+  e.target.value="";
+});
+const dropZone=$("dropZone");
+let dragDepth=0;
+dropZone.querySelector("label").addEventListener("keydown",e=>{
+  if(e.key==="Enter"||e.key===" "){
+    e.preventDefault();
+    $("file").click();
+  }
+});
+dropZone.addEventListener("dragenter",e=>{
+  e.preventDefault();
+  dragDepth++;
+  dropZone.classList.add("drag-over");
+});
+dropZone.addEventListener("dragover",e=>{
+  e.preventDefault();
+  if(e.dataTransfer)e.dataTransfer.dropEffect="copy";
+});
+dropZone.addEventListener("dragleave",e=>{
+  e.preventDefault();
+  if(--dragDepth<=0){
+    dragDepth=0;
+    dropZone.classList.remove("drag-over");
+  }
+});
+dropZone.addEventListener("drop",e=>{
+  e.preventDefault();
+  dragDepth=0;
+  dropZone.classList.remove("drag-over");
+  const files=e.dataTransfer?.files;
+  if(!files?.length)return;
+  if(files.length!==1){
+    fileLoadVersion++;
+    $("fileError").textContent="GPX 파일은 한 번에 1개씩 놓아 주세요.";
+    return;
+  }
+  loadGpxFile(files[0]);
+});
+window.addEventListener("dragover",e=>{
+  if(Array.from(e.dataTransfer?.types||[]).includes("Files"))e.preventDefault();
+});
+window.addEventListener("drop",e=>{
+  if(Array.from(e.dataTransfer?.types||[]).includes("Files"))e.preventDefault();
 });
 $("locate").addEventListener("click",()=>{
   $("geoError").textContent="";
